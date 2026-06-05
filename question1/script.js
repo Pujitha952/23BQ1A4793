@@ -1,49 +1,53 @@
-const mechanicHours = 50;
+const token = process.env.TOKEN;
 
-const vehicles = [
-  { taskId: "1", duration: 8, impact: 5 },
-  { taskId: "2", duration: 7, impact: 10 },
-  { taskId: "3", duration: 1, impact: 8 },
-  { taskId: "4", duration: 5, impact: 8 },
-  { taskId: "5", duration: 8, impact: 8 },
-  { taskId: "6", duration: 7, impact: 8 }
-];
-
-const n = vehicles.length;
-
-const dp = Array(n + 1)
-  .fill()
-  .map(() => Array(mechanicHours + 1).fill(0));
-
-for (let i = 1; i <= n; i++) {
-  const vehicle = vehicles[i - 1];
-
-  for (let h = 0; h <= mechanicHours; h++) {
-    if (vehicle.duration <= h) {
-      dp[i][h] = Math.max(
-        dp[i - 1][h],
-        dp[i - 1][h - vehicle.duration] + vehicle.impact
-      );
-    } else {
-      dp[i][h] = dp[i - 1][h];
-    }
+function getPriority(type) {
+  switch (type) {
+    case "Placement":
+      return 3;
+    case "Result":
+      return 2;
+    case "Event":
+      return 1;
+    default:
+      return 0;
   }
 }
 
-let h = mechanicHours;
-const selected = [];
+async function main() {
+  try {
+    const response = await fetch(
+      "http://4.224.186.213/evaluation-service/notifications",
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
 
-for (let i = n; i > 0; i--) {
-  if (dp[i][h] !== dp[i - 1][h]) {
-    selected.push(vehicles[i - 1]);
-    h -= vehicles[i - 1].duration;
+    const data = await response.json();
+
+    const notifications = data.notifications || data;
+
+    const sorted = notifications
+      .map((n) => ({
+        ...n,
+        score:
+          getPriority(n.Type) * 1000000000000 +
+          new Date(n.Timestamp).getTime()
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+
+    console.table(
+      sorted.map((n) => ({
+        Type: n.Type,
+        Message: n.Message,
+        Timestamp: n.Timestamp
+      }))
+    );
+  } catch (err) {
+    console.error(err);
   }
 }
 
-console.log("Selected Vehicles:");
-console.table(selected);
-
-console.log(
-  "Maximum Impact Score:",
-  dp[n][mechanicHours]
-);
+main();
